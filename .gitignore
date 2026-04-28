@@ -12,6 +12,7 @@ venv/
 *.db
 
 # Docker
+idg-tool-server
 .dockerignore
 
 # Environment / Secrets
