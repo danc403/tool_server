@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Databases (Local/Testing)
+*.sqlite
+*.sqlite3
+*.db
+
+# Docker
+.dockerignore
+
+# Environment / Secrets
+.env
+secrets.json
+
+# OS specific
+.DS_Store
+Thumbs.db
