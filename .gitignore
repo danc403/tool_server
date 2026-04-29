@@ -16,6 +16,7 @@ idg-tool-server
 .dockerignore
 **.tar
 **.tar.gz
+!idg-tool-server.tar
 
 # Environment / Secrets
 .env
