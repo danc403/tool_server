@@ -51,19 +51,43 @@
 </div>
 
 <script>
-    const toolConfigs = {
-        calculator: { expression: "string" },
-        convert: { value: "number", from_unit: "string", to_unit: "string" },
-        distance: { location1: "json", location2: "json" },
-        file_manager: { action: "string", file_path: "string", content: "string", append: "boolean" },
-        get_location_info: { query: "string" },
-        notes: { action: "string", title: "string", content: "string", query: "string", tags: "string", session: "string" },
-        run_command: { command: "string", cwd: "string", timeout: "number" },
-        time_utils: { action: "string", timezone: "string", datetime_str: "string" },
-        weather: { location: "string", units: "string" },
-        web_page: { url: "string" },
-        web_search: { query: "string" }
-    };
+    let toolConfigs = {};
+
+    async function initTerminal() {
+        const responseArea = document.getElementById('response-area');
+        try {
+            // Fetch the discovery data from the root endpoint
+            const response = await fetch('http://localhost:8080/');
+            const data = await response.json();
+            
+            const select = document.getElementById('tool-select');
+            select.innerHTML = '<option value="">-- Select a Tool --</option>';
+            
+            data.available_tools.forEach(toolWrap => {
+                const tool = toolWrap.function;
+                const name = tool.name;
+                
+                // Map the OpenAI-style params back to our simple UI config
+                toolConfigs[name] = {};
+                for (const [pName, pValue] of Object.entries(tool.parameters.properties)) {
+                    // Use 'json' as a hint if it's an object/string but meant for location
+                    let type = pValue.type;
+                    if (pName.includes('location')) type = 'json';
+                    toolConfigs[name][pName] = type;
+                }
+
+                // Populate the dropdown
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.innerText = name;
+                select.appendChild(opt);
+            });
+
+            responseArea.innerText = 'Terminal Ready. ' + data.available_tools.length + ' tools discovered.';
+        } catch (error) {
+            responseArea.innerText = 'DISCOVERY ERROR: Ensure tool_server.py is running on port 8080.\n' + error.message;
+        }
+    }
 
     function updateFields() {
         const tool = document.getElementById('tool-select').value;
@@ -80,13 +104,13 @@
             if (type === 'boolean') {
                 input = document.createElement('select');
                 input.innerHTML = '<option value="false">false</option><option value="true">true</option>';
-            } else if (type === 'json') {
+            } else if (type === 'json' || type === 'object') {
                 input = document.createElement('textarea');
                 input.placeholder = '{"latitude": 0.0, "longitude": 0.0}';
                 input.rows = 3;
             } else {
                 input = document.createElement('input');
-                input.type = type === 'number' ? 'number' : 'text';
+                input.type = (type === 'integer' || type === 'number') ? 'number' : 'text';
             }
             
             input.id = 'param-' + key;
@@ -99,11 +123,7 @@
     async function executeTool() {
         const tool = document.getElementById('tool-select').value;
         const responseArea = document.getElementById('response-area');
-        
-        if (!tool) {
-            alert('Please select a tool first.');
-            return;
-        }
+        if (!tool) return;
 
         const payload = {};
         const inputs = document.querySelectorAll('.tool-param');
@@ -114,13 +134,11 @@
 
             if (input.type === 'number') value = parseFloat(value);
             if (input.tagName === 'SELECT' && (value === 'true' || value === 'false')) value = (value === 'true');
-            if (input.tagName === 'TEXTAREA' && toolConfigs[tool][key] === 'json') {
-                try { value = JSON.parse(value); } catch(e) { console.error('Invalid JSON in ' + key); }
+            if (input.tagName === 'TEXTAREA') {
+                try { value = JSON.parse(value); } catch(e) { /* keep as string if not valid JSON */ }
             }
 
-            if (value !== "" && value !== undefined) {
-                payload[key] = value;
-            }
+            if (value !== "" && value !== undefined) payload[key] = value;
         });
 
         responseArea.innerText = 'Executing ' + tool + '...';
@@ -137,6 +155,9 @@
             responseArea.innerText = 'Error: ' + error.message;
         }
     }
+
+    // Run discovery on page load
+    window.onload = initTerminal;
 </script>
 
 </body>

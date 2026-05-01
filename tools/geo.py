@@ -21,7 +21,7 @@ def normalize_to_ascii(text: str) -> str:
     )
     return result
 
-def geo(query: str) -> str:
+async def geo(query: str) -> str:
     """
     Standardized geographic lookup tool for global cities, towns, and major landmarks.
     

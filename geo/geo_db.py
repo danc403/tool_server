@@ -3,6 +3,7 @@ import zipfile
 import os
 import requests
 import sys
+import unicodedata
 
 # File Configuration
 DB_FILE = "geo.db"
@@ -168,6 +169,21 @@ FEATURE_DICTIONARY = {
     'PPLX': 'Section of Populated Place'
 }
 
+def normalize_to_ascii(text: str) -> str:
+    """
+    Converts Unicode characters to their closest ASCII equivalents 
+    (e.g., 'Î' becomes 'I') and removes non-printable characters.
+    """
+    if not text:
+        return ""
+    normalized = unicodedata.normalize('NFD', text)
+    result = "".join(
+        c for c in normalized 
+        if unicodedata.category(c) != 'Mn' 
+        and (32 <= ord(c) <= 126)
+    )
+    return result
+
 def build_db():
     # --- STEP 1: DOWNLOADS ---
     print("STEP 1: Checking all source files...")
@@ -243,16 +259,24 @@ def build_db():
     """)
 
     # --- STEP 4: POPULATE LOOKUPS ---
-    print("\nSTEP 4: Populating Lookup tables...")
+    print("\nSTEP 4: Populating Lookup tables (Normalized)...")
     
     # Countries
     with open(COUNTRIES_TXT, 'r', encoding='utf-8') as f:
-        c_batch = [(l.split('\t')[0], l.split('\t')[4]) for l in f if not l.startswith('#') and l.strip()]
+        c_batch = []
+        for l in f:
+            if not l.startswith('#') and l.strip():
+                p = l.split('\t')
+                c_batch.append((p[0], normalize_to_ascii(p[4])))
         cursor.executemany("INSERT INTO countries VALUES (?,?)", c_batch)
 
     # Regions
     with open(REGIONS_TXT, 'r', encoding='utf-8') as f:
-        r_batch = [(l.split('\t')[0], l.split('\t')[1]) for l in f if l.strip()]
+        r_batch = []
+        for l in f:
+            if l.strip():
+                p = l.split('\t')
+                r_batch.append((p[0], normalize_to_ascii(p[1])))
         cursor.executemany("INSERT INTO regions VALUES (?,?)", r_batch)
 
     # Features
@@ -262,14 +286,21 @@ def build_db():
     conn.commit()
 
     # --- STEP 5: IMPORT CITIES 5000 ---
-    print("\nSTEP 5: Importing Cities 5000...")
+    print("\nSTEP 5: Importing Cities 5000 (Normalized)...")
     total_cities = 0
     batch = []
     with open(CITIES_TXT, 'r', encoding='utf-8') as f:
         for line in f:
             p = line.split('\t')
             if len(p) < 19: continue
-            batch.append([col.strip() for col in p])
+            
+            # Normalize Name (1), Asciiname (2), and Timezone (17)
+            processed = [col.strip() for col in p]
+            processed[1] = normalize_to_ascii(processed[1])
+            processed[2] = normalize_to_ascii(processed[2])
+            processed[17] = normalize_to_ascii(processed[17])
+            
+            batch.append(processed)
             if len(batch) >= 10000:
                 cursor.executemany("INSERT OR IGNORE INTO places VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", batch)
                 conn.commit()
@@ -282,11 +313,10 @@ def build_db():
             total_cities += len(batch)
 
     # --- STEP 6: IMPORT LANDMARKS FROM ALL COUNTRIES ---
-    print("\nSTEP 6: Importing Landmarks from All Countries (Filtered via Density Tiering)...")
+    print("\nSTEP 6: Importing Landmarks from All Countries (Normalized)...")
     total_landmarks = 0
     batch = []
     
-    # We include H (Hydrographic) and T (Hypsographic/Mountains) to catch dams and canyons
     ALLOWED_CLASSES = {'S', 'P', 'T', 'H', 'L'}
     
     with open(ALL_TXT, 'r', encoding='utf-8', errors='replace') as f:
@@ -310,7 +340,12 @@ def build_db():
             elif f_code in TIER_4 and alt_count >= T4_THRESH: keep = True
 
             if keep:
-                batch.append([col.strip() for col in p])
+                processed = [col.strip() for col in p]
+                processed[1] = normalize_to_ascii(processed[1])
+                processed[2] = normalize_to_ascii(processed[2])
+                processed[17] = normalize_to_ascii(processed[17])
+                
+                batch.append(processed)
                 if len(batch) >= 10000:
                     cursor.executemany("INSERT OR IGNORE INTO places VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", batch)
                     conn.commit()
