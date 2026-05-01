@@ -1,4 +1,3 @@
-# weather.py
 import urllib.request
 import urllib.parse
 import json
@@ -99,9 +98,34 @@ async def weather(
         loop = asyncio.get_event_loop()
         data = await loop.run_in_executor(None, fetch_data)
         
+        # Load the original data
+        raw_json = json.loads(data)
+        
+        # Pruning logic: We explicitly rebuild the lists to exclude nested bloat 
+        # while keeping only the top-level identity keys from the raw API.
+        
+        # 1. Strip current_condition to the specific 6 keys requested
+        current = raw_json.get("current_condition", [{}])[0]
+        pruned_current = {
+            "FeelsLikeC": current.get("FeelsLikeC"),
+            "FeelsLikeF": current.get("FeelsLikeF"),
+            "temp_C": current.get("temp_C"),
+            "temp_F": current.get("temp_F"),
+            "weatherDesc": [{"value": current.get("weatherDesc", [{}])[0].get("value")}],
+            "windspeedKmph": current.get("windspeedKmph")
+        }
+
+        # 2. Reconstruct the output to ensure NO unrequested keys leak through
+        structured_data = {
+            "current_condition": [pruned_current],
+            "nearest_area": raw_json.get("nearest_area", [])[:1], # Keep identity, drop extra area objects
+            "request": raw_json.get("request", []),
+            "weather": [] # Strip all multi-day/hourly forecast objects to clear bloat
+        }
+        
         return {
             "status": "success", 
-            "data": json.loads(data)
+            "data": structured_data
         }
             
     except urllib.error.HTTPError as e:

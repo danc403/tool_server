@@ -1,0 +1,12 @@
+# Web Framework & ASGI Server
+fastapi
+uvicorn
+starlette
+
+# HTTP Clients for Web Scraping/Searching
+requests
+aiohttp
+
+# Content Parsing & Searching
+beautifulsoup4
+duckduckgo_search
