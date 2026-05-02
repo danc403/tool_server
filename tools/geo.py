@@ -52,7 +52,7 @@ async def geo(query: str) -> str:
     if not os.path.exists(db_path):
         return json.dumps({
             "tool": "geo",
-            "result": json.dumps({"status": "error", "message": "Database missing"})
+            "result": {"status": "error", "message": "Database missing"}
         })
 
     raw_input = query.strip()
@@ -120,8 +120,9 @@ async def geo(query: str) -> str:
                 try: return type(default)(float(val))
                 except: return default
 
-            # Apply ASCII normalization to all text fields
-            data = {
+# Apply ASCII normalization to all text fields and return flat object
+            return json.dumps({
+                "status": "success",
                 "latitude": safe_num(row[3], 0.0),
                 "longitude": safe_num(row[4], 0.0),
                 "city": normalize_to_ascii(row[0]),
@@ -131,21 +132,19 @@ async def geo(query: str) -> str:
                 "elevation": safe_num(row[6], 0),
                 "timezone": normalize_to_ascii(row[7]) if row[7] else "UTC",
                 "type": normalize_to_ascii(row[8]).replace("/", "-")
-            }
-            
-            # ensure_ascii=True is the default for json.dumps, 
-            # but our normalization makes it physically impossible to have non-ASCII anyway.
-            return json.dumps({
-                "tool": "geo",
-                "result": json.dumps({"status": "success", "data": data})
             })
         else:
-            return json.dumps({"tool": "geo", "result": json.dumps({"status": "error", "message": "No match"})})
+            return json.dumps({
+                "status": "error", "message": "No match"
+            })
 
     except Exception as e:
-        return json.dumps({"tool": "geo", "result": json.dumps({"status": "error", "message": str(e)})})
+        return json.dumps({
+            "status": "error", "message": str(e)
+        })
 
 if __name__ == "__main__":
-    print(geo("Eiffel Tower"))
-    print(geo("Paris, TX"))
-    print(geo("St Louis, MO"))
+    import asyncio
+    print(asyncio.run(geo("Eiffel Tower")))
+    print(asyncio.run(geo("Paris, TX")))
+    print(asyncio.run(geo("St Louis, MO")))
